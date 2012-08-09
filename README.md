@@ -1,0 +1,5 @@
+Finding memory leaks can be very difficult job sometimes, if you do not have right set of tools. My experience with memory leak detector tools on windows is bad, sometimes they are not able to correctly instrument the code and some gives you cryptic language output. So I decided to write something. After reading couple of article, in pure C++ environment you can overload operator new and operator delete and this trick can be used to build small tool which would be easy to integrate and find leaks during development. In C language world writing macros which wraps systems calls like malloc/calloc/realloc will help you to find the file name and line number . But in C++, when you do new, it first calls operator new and then the constructors, so macros or pre-processor technique would not be useful.
+
+But Windows has nice StackWalk64 family of API which could be used to find the exact stack trace for the origin of the call.
+
+You will need to include following header file in your project and call dumpUnfreedMemory after your application is done.
