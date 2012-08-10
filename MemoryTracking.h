@@ -15,6 +15,22 @@ static const int MAX_TRACES     = 62;
 static const int MAX_LENGTH     = 256;
 static const int BUFFER_LENGTH  = (sizeof(SYMBOL_INFO) + MAX_LENGTH * sizeof(wchar_t) + sizeof(ULONG64) - 1) / sizeof(ULONG64); static bool SYSTEM_INITIALIZED  = false;
 
+static CRITICAL_SECTION gLock;
+static bool lockInitialized = false;
+
+void Lock() {
+  if ( lockInitialized == false ) {
+    ::InitializeCriticalSection(&gLock);
+    lockInitialized = true;
+  }
+  ::EnterCriticalSection(&gLock);
+}
+
+void Unlock() {
+  ::LeaveCriticalSection(&gLock);
+}
+
+
 typedef struct record_t {
 	char symbol[2048];
 	char filename[128];
@@ -63,6 +79,7 @@ static void GetCallStackDetails(const void* const* trace, int count, AllocList *
 }
 
 static void addRecord(void *ptr, size_t size) {
+  Lock();
 	if ( SYSTEM_INITIALIZED == false ) {
 		SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME | SYMOPT_LOAD_LINES);
 		if (SymInitialize(GetCurrentProcess(), NULL, TRUE)) {
@@ -95,9 +112,12 @@ static void addRecord(void *ptr, size_t size) {
   newRecord->details[0].depth = count;
 
 	GetCallStackDetails( trace, count, newRecord);
+  
+  Unlock();
 }
 
 static void deleteRecord(void *ptr ) {
+  Lock();
   AllocList *current, *previous;
   previous = NULL;
   for (current = gListHead; current != NULL; previous = current, current = current->next) {
@@ -108,12 +128,15 @@ static void deleteRecord(void *ptr ) {
         previous->next = current->next;
       }
       free(current);
+      Unlock();
       return;
     }
   } 
+  Unlock();
 }
 
 void dumpUnfreedMemory(FILE *fp=stderr) {
+  Lock();
   AllocList *current;
   int totalBytesNotFreed = 0;
   for (current = gListHead; current != NULL; current = current->next) {
@@ -126,6 +149,7 @@ void dumpUnfreedMemory(FILE *fp=stderr) {
     fprintf(fp, "\n");
   }
   fprintf ( fp, "Total bytes not freed %d\n", totalBytesNotFreed );
+  Unlock();
 }
 
 // Overloading new operator
